@@ -59,7 +59,7 @@ if [ -z "$TAG" ]; then
     log "探测最新 release ..."
     TAG="$(python3 - "https://api.github.com/repos/${REPO_SLUG}/releases?per_page=50" <<'PY'
 import json, sys, urllib.request
-req = urllib.request.Request(sys.argv[1], headers={"User-Agent": "qnas-kernel-test"})
+req = urllib.request.Request(sys.argv[1], headers={"User-Agent": "qnap-kernel-test"})
 with urllib.request.urlopen(req, timeout=30) as r:
     for rel in json.load(r):
         if rel.get("tag_name", "").startswith("router-vm-"):

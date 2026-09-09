@@ -1,4 +1,4 @@
-# qnas-kernel
+# qnap-kernel
 
 为 QNAP TS-564 NAS 定制的 Linux 6.18.50 LTS 内核，使用 Nix flakes 构建。
 
@@ -154,12 +154,12 @@ nix.settings = {
 ```nix
 # qnap-nixos-nas/flake.nix：加 input（不要 follows nixpkgs，
 # 否则本地求值出的 derivation 与 CI 不一致，缓存命不中）
-qnas-kernel.url = "github:allenmagic/qnas-kernel";
+qnap-kernel.url = "github:allenmagic/qnap-kernel";
 ```
 
-然后在宿主机配置里 import `qnas-kernel.nixosModules.kernel`（只换内核；宿主已有
+然后在宿主机配置里 import `qnap-kernel.nixosModules.kernel`（只换内核；宿主已有
 `hardware.qnap8528.enable`，用 `nixosModules.default` 会重复挂 qnap8528）。
-之后 NAS 上 `nix flake update qnas-kernel && nixos-rebuild switch` 即可直接从缓存拉取。
+之后 NAS 上 `nix flake update qnap-kernel && nixos-rebuild switch` 即可直接从缓存拉取。
 
 > 缓存命中的前提：NAS 求值出的 derivation 与 CI 完全一致 —— 同 flake rev、同
 > `nixpkgs`（本仓库自带的 lock，**不要** follows 宿主的 nixpkgs）、`boot.kernelPatches`

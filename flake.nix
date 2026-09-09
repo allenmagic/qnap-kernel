@@ -40,7 +40,13 @@
           "-fno-semantic-interposition"
         ] pkgs.stdenv;
 
+        # 只进 passthru（不影响 kernel derivation，缓存命中不受影响），
+        # 但 NixOS 会读它做断言：systemd-boot 要求 features.efiBootStub 存在。
+        # ⚠️ manualConfig 不像 generic.nix 那样自动补默认 features，必须显式列出。
         features = {
+          efiBootStub = true;
+          netfilterRPFilter = true;
+          ia32Emulation = true;
           iwlwifi = false;
           btusb = false;
           netfilter = true;
@@ -118,10 +124,13 @@
       # 完整独立模块：换内核 + 挂 qnap8528 + initrd/文件系统裁剪（单机使用）
       nixosModules.default = import ./modules/kernel-custom.nix (inputs // { inherit kernelPackages; });
 
-      # 只换内核：供已有 qnap8528 集成的宿主（qnap-nixos-nas）使用，
-      # 避免与宿主自己的 hardware.qnap8528 overlay 重复挂载模块。
-      nixosModules.kernel = { ... }: {
-        boot.kernelPackages = kernelPackages;
+      # 只换内核：供已有 qnap8528 集成的宿主（qnap-nixos-nas）使用。
+      # 用**宿主的 pkgs** 构建包集合（而非本 flake 的 pkgs），这样宿主通过
+      # nixpkgs.overlays 注入的 qnap8528（hardware.qnap8528 模块的 overlay
+      # 扩展的是宿主 pkgs 的 linuxKernel.packagesFor）才能被带上。
+      # 内核本身仍是本 flake 构建的那份，derivation 不变，缓存照常命中。
+      nixosModules.kernel = { pkgs, ... }: {
+        boot.kernelPackages = pkgs.linuxPackagesFor customKernel;
       };
 
       packages.${system} = {
