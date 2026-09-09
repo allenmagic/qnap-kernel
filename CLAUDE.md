@@ -17,7 +17,8 @@ QNAP TS-564 (NixOS Host)
 ```
 
 **Key Features:**
-- Linux LTS kernel (6.6.x) - 长期稳定支持
+- Linux LTS kernel (6.18.x) - 长期稳定支持
+- **配置来源是 NAS 实机**：`.config` 由 `make localmodconfig` 从 NAS 当前运行状态裁剪而来（详见 `docs/localmodconfig-guide.md`）
 - Highly optimized with Tremont-specific compiler flags
 - Integration with the external qnap8528 hardware control module
 - Full KVM virtualization support (cloud-hypervisor)
@@ -29,6 +30,13 @@ QNAP TS-564 (NixOS Host)
 
 ### Local Development
 
+重新采集 NAS 快照并生成最小配置（配置有变更时必做）：
+```bash
+scripts/snapshot-nas.sh                 # 从 NAS 抓 lsmod + /proc/config.gz 到 docs/nas/
+nix build .#genConfig --print-out-paths # 沙盒内跑 localmodconfig + keep-list + 自校验
+cp /nix/store/...-nas-localmodconfig-<版本>/config generated/nas-<版本>.config
+```
+
 Build the custom kernel:
 ```bash
 nix build .#packages.x86_64-linux.kernel --print-out-paths --verbose
@@ -36,6 +44,13 @@ nix build .#packages.x86_64-linux.kernel --print-out-paths --verbose
 # Check kernel version
 nix eval .#packages.x86_64-linux.kernel.version
 ```
+
+用 QEMU + router-image release 的 rootfs 实测内核（串口直连，登录 root/root）：
+```bash
+scripts/test-kernel-qemu.sh alpine     # 或 gentoo
+```
+注意：本内核是宿主内核，`VIRTIO_BLK` 等是模块，所以用 built-in 的 AHCI 挂盘
+（`root=/dev/sda`）。覆盖内核启动/SATA-AHCI/ext4/到 login；不覆盖 KVM/vhost/网络。
 
 Build and test the entire NixOS module configuration:
 ```bash
@@ -54,37 +69,41 @@ nix flake update
 
 ### CI/CD
 
-The GitHub Actions workflow `.github/workflows/build-kernel.yml` automatically:
-- Builds on push to main or PR
-- Uses Cachix for binary caching (requires `CACHIX_AUTH_TOKEN` secret)
-- Can be manually triggered via workflow_dispatch
+`.github/workflows/build-kernel.yml`（push/PR/`workflow_dispatch`）依次执行：
+校验 keep-list（`nix build .#genConfig`）→ `nix flake check --no-build` →
+编译内核（`out`/`dev`/`modules`）→ 编译 `packages.qnap8528-module`，
+并由 cachix-action 的 post-build hook 自动推送到 **`qnap-kernel`** 缓存。
+
+- 需要仓库 secret `CACHIX_AUTH_TOKEN`（fork 的 PR 没有，只读不推）
+- 缓存名在三处必须一致：`flake.nix` 的 `nixConfig`、workflow 的 `name`、消费端 substituter
+- 消费端（NAS）引用方式与命中前提见 `README.md` 的 CI/CD 一节
 
 ## Architecture
 
 ### Kernel Customization Strategy
 
-The project uses a **four-layer configuration approach**:
+配置**不是手工维护的选项列表**，而是从 NAS 实机状态裁剪出来的 `.config`：
 
-1. **Kernel version selection**:
-   - Uses `linuxPackages_latest_lts` (currently Linux 6.6.x LTS)
-   - Ensures long-term stability and hardware support
-   - See `docs/kernel-version-guide.md` for version selection rationale
+1. **配置来源**：`generated/nas-<版本>.config` —— 由 `scripts/snapshot-nas.sh`
+   采集 NAS 的 `/proc/config.gz` + `lsmod`，再经 `nix build .#genConfig`
+   跑 `make localmodconfig` 并叠加 `scripts/keep-list.conf` 得到。
+   完整流程见 `docs/localmodconfig-guide.md`。
 
-2. **Compiler optimization layer** (`stdenv` override):
-   - `-march=tremont`: Target N5095 Tremont microarchitecture specifically
-   - `-mtune=tremont`: Microarchitecture-specific tuning
-   - `-O2`: Balanced optimization (stability over aggressive optimization)
-   - `-pipe`: Use pipes rather than temporary files during compilation
+2. **构建方式**：`flake.nix` 用 `pkgs.linuxKernel.manualConfig` 直接喂这份原始
+   `.config`（**不是** `structuredExtraConfig` / `autoModules` 通道）。
+   源码骨架（版本、`src`、`kernelPatches`、`modDirVersion`）取自
+   `linuxKernel.kernels.linux_default`。
 
-3. **Feature-level pruning** (`features` block):
-   - Disables entire driver subsystems (iwlwifi, btusb) that are unused on TS-564
-   - Keeps essential networking features (netfilter) for Docker/VM networking
+3. **编译器优化层**（`stdenv` override）：
+   - `-march=tremont` / `-mtune=tremont`：针对 N5095 Tremont 微架构
+   - `-O2`：稳定性优先于激进优化
+   - `-pipe`、`-fno-semantic-interposition`
 
-4. **Fine-grained config pruning** (`structuredExtraConfig`):
-   - Switches from `MCORE2` to `MATOM` CPU optimization
-   - Statically compiles all required drivers (`yes` instead of `module`)
-   - Disables wireless, Bluetooth, debugging, and unused GPU drivers
-   - Enables all storage, USB, networking, and power management features needed for NAS operation
+4. **keep-list**（`scripts/keep-list.conf`）：localmodconfig 只能看到「已加载」的模块，
+   必须用它把快照时未加载但必需的选项（wireguard/overlay/nfsd/KVM/...）拉回来。
+   生成器会逐项自校验，写错符号名或 bool/tristate 类型会直接构建失败。
+
+> ⚠️ 升级 nixpkgs 后必须重新执行 3.1/3.2 的采集与生成，否则新内核新增的必选项会缺失。
 
 ### Key Dependencies
 
@@ -97,9 +116,11 @@ The kernel configuration has a **critical dependency chain** for the qnap8528 mo
 
 ```
 flake.nix
+  ├─> customKernel (linuxKernel.manualConfig, configfile = generated/nas-<版本>.config)
+  ├─> kernelPackages = linuxPackagesFor customKernel
   └─> nixosModules.default
-       └─> modules/kernel-custom.nix
-            ├─> myCustomKernel (linuxPackages_latest.extend)
+       └─> modules/kernel-custom.nix（kernelPackages 由 flake 作为参数传入）
+            ├─> boot.kernelPackages = kernelPackages
             └─> boot.extraModulePackages
                  └─> qnap8528 (from external flake, compiled against custom kernel)
 ```
@@ -115,10 +136,13 @@ The qnap8528 module is:
 `boot.initrd.availableKernelModules` is forced to minimal set:
 - `xhci_pci`: USB boot support
 - `ahci`: SATA boot support
-- `nvme`: NVMe boot support
 - `sdhci_pci`: eMMC boot support
 
 This eliminates probe delays for unused hardware during boot.
+
+⚠️ TS-564 has **no NVMe hardware**（lspci 无 NVMe 控制器，根分区在 `/dev/sda2` SATA），
+所以 `BLK_DEV_NVME=n` 且列表里不能出现 `nvme`（模块不存在会拖累 initrd 构建）。
+若将来加装 M.2，需同时把 `m BLK_DEV_NVME` 加回 `scripts/keep-list.conf` 并重新生成配置。
 
 ## Hardware-Specific Configuration
 
@@ -190,19 +214,21 @@ When modifying the kernel configuration:
   - `OVERLAY_FS` (container storage)
   - Required for VPN + VRRP gateway container
 
-These features are already correctly configured in `modules/kernel-optimized-final.nix`. Do not disable or convert them to modules when optimizing.
+These features must be covered by `scripts/keep-list.conf`（否则 localmodconfig 会按快照
+状态把它们裁掉）。改动 keep-list 后跑 `nix build .#genConfig`，自校验会报出未生效项。
 
 ## Reference: Active Kernel Modules
 
-See `docs/lsmod-reference.txt` for a complete list of currently loaded modules on the production TS-564 system. This list serves as a reference when pruning kernel features:
+`docs/nas/lsmod.txt` 是最近一次从生产 TS-564 采集的已加载模块列表（`scripts/snapshot-nas.sh`
+的产物），`docs/lsmod-reference.txt` 是更早的一份人工参考，两者都只作对照：
 
-- Modules in this list should have their corresponding kernel config options preserved
-- When adding new hardware support, check if related modules appear in this list
-- Periodically update this reference after system updates or hardware changes
+- 列表里的模块，其对应配置项应保留在 `generated/*.config` 中
+- 增加新硬件支持时，先看它是否出现在这份列表里
+- 系统升级或硬件变化后重新采集
 
-To regenerate the reference list on your TS-564:
+重新采集（同时会刷新配置基线）：
 ```bash
-lsmod > docs/lsmod-reference.txt
+scripts/snapshot-nas.sh
 ```
 
 ## Multi-Layer Architecture Specifics
@@ -224,11 +250,12 @@ The VPN gateway container provides:
 
 ## Important Notes
 
-- **Cachix setup**: Replace `your-qnap-cache` in both `flake.nix` and `.github/workflows/build-kernel.yml` with actual Cachix cache name
+- **Cachix setup**: 缓存名 `qnap-kernel` 已落地在三处（`flake.nix` nixConfig、workflow `name`、NAS substituter）；仍需把 Cachix 面板的 Public key 填进 `flake.nix` 的 `extra-trusted-public-keys` 占位符，并配 `CACHIX_AUTH_TOKEN` secret
 - **Symbol dependencies**: When adding kernel features, check if qnap8528 module needs corresponding changes
 - **Build time**: Full kernel build takes ~20-40 minutes on GitHub Actions runners
 - **Testing**: Always test kernel boots on actual hardware before deploying to production NAS
-- **Module reference**: Keep `docs/lsmod-reference.txt` updated to reflect actual hardware usage
+- **Config regeneration**: 升级 nixpkgs / 换内核版本后，必须重跑 `scripts/snapshot-nas.sh` + `nix build .#genConfig`，并把新配置提交为 `generated/nas-<新版本>.config`
+- **Module reference**: Keep `docs/nas/lsmod.txt` updated to reflect actual hardware usage
 - **Virtualization**: Ensure KVM and vhost modules are loaded before starting VMs
 - **Networking**: IP forwarding must be enabled in sysctl for routing functionality
 
@@ -238,7 +265,7 @@ See `docs/` directory for detailed guides:
 - `kernel-version-guide.md` - Kernel version selection (LTS vs latest)
 - `multi-layer-architecture.md` - Complete architecture and networking setup
 - `advanced-optimizations.md` - Compiler flags, performance tuning options
-- `localmodconfig-guide.md` - Using localmodconfig for optimal kernel size
+- `localmodconfig-guide.md` - **配置生成流程（必读）**：快照 → localmodconfig → keep-list → manualConfig
 - `config-analysis.md` - Analysis of current hardware and loaded modules
 - `commands-reference.md` - All commonly used commands
-- `SUMMARY.md` - Project summary and next steps
+- `SUMMARY.md` - 历史草稿，部分内容（如 kernel-optimized-final.nix）已废弃，以本文件与 localmodconfig-guide.md 为准

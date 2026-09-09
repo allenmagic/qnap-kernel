@@ -6,6 +6,9 @@ result-*
 *.log
 /tmp/
 
+# 测试下载的镜像/日志（test-kernel-qemu.sh）
+/build/
+
 # Editor
 .vscode/
 .idea/

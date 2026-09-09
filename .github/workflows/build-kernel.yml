@@ -1,41 +1,64 @@
-name: "Build and Cache QNAP Custom Kernel"
+name: Build & Cache QNAP Kernel
 
+# 在 GitHub Runner 上编译内核与外部模块，并推送到 Cachix（qnap-kernel），
+# 让 NAS 侧 nix 直接拉取二进制、不再本地编译。
 on:
   push:
-    branches: [ "main" ]    # 当您向 main 分支推送代码时自动触发
+    branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
-    branches: [ "main" ]    # 提交 PR 时触发编译测试
-  workflow_dispatch:        # 允许您在 GitHub 网页端手动点击触发编译
+    branches: [ main ]
+  workflow_dispatch:
+
+# 同一分支的旧构建自动取消，避免排队浪费
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  nix-kernel-build:
-    runs-on: ubuntu-latest  # 使用 GitHub 提供的免费 Ubuntu 执行器
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # 1. 在 GitHub Runner 虚拟机中注入官方纯净的 Nix 工具链
-    - name: Install Nix
-      uses: cachix/install-nix-action@v25
-      with:
-        # 使用最新的不稳定版频道以获取最新版内核支持
-        nix_path: nixpkgs=channel:nixos-unstable
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
-    # 2. 对接您的私有二进制缓存（以 Cachix 为例，若使用 Attic 可换用对应 Action）
-    # 这一步是 NAS 能否实现“0秒免编译、秒级拉取”的核心基础
-    - name: Setup Magic Binary Cache (Cachix)
-      uses: cachix/cachix-action@v14
-      with:
-        name: 'your-qnap-cache' # ⚠️ 替换为您的 Cachix 缓存空间名称
-        # ⚠️ 请在您的 GitHub 仓库的 Settings -> Secrets and variables -> Actions 中
-        # 添加名为 CACHIX_AUTH_TOKEN 的密钥
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      # name 必须与 flake.nix 的 nixConfig 及 NAS 的 substituters 一致。
+      # CACHIX_AUTH_TOKEN 在仓库 Settings -> Secrets and variables -> Actions 配置；
+      # 未配置时（如 fork 的 PR）只读不推，构建仍会执行。
+      - name: Setup Cachix (qnap-kernel)
+        uses: cachix/cachix-action@v15
+        with:
+          name: qnap-kernel
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-    # 3. 核心构建命令：利用 Nix 纯净沙盒去轰炸 GitHub Runner 的 CPU
-    # 这里的 `.#packages.x86_64-linux.kernel` 精准对应我们在 flake.nix 导出的纯内核包
-    - name: Compile Custom Kernel with Nix Tools
-      run: |
-        nix build .#packages.x86_64-linux.kernel --print-out-paths --verbose
+      # nixpkgs 升级后符号可能改名/改类型，这一步会提前失败而不是悄悄丢配置
+      - name: Verify keep-list against kernel source
+        run: nix build .#genConfig --print-out-paths --verbose
+
+      - name: Flake check (no build)
+        run: nix flake check --no-build
+
+      # 内核 derivation 有 out / dev / modules 三个输出，一次构建全部产出
+      - name: Build kernel
+        run: nix build .#packages.x86_64-linux.kernel --print-out-paths --verbose
+
+      # qnap8528 外部模块（对本内核交叉编译），一并入缓存
+      - name: Build qnap8528 module
+        run: nix build .#packages.x86_64-linux.qnap8528-module --print-out-paths --verbose
+
+      - name: Summary
+        run: |
+          echo "### 内核" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          nix path-info --extra-experimental-features 'nix-command flakes' -S \
+            .#packages.x86_64-linux.kernel >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
