@@ -129,8 +129,15 @@
       # nixpkgs.overlays 注入的 qnap8528（hardware.qnap8528 模块的 overlay
       # 扩展的是宿主 pkgs 的 linuxKernel.packagesFor）才能被带上。
       # 内核本身仍是本 flake 构建的那份，derivation 不变，缓存照常命中。
-      nixosModules.kernel = { pkgs, ... }: {
+      nixosModules.kernel = { pkgs, lib, ... }: {
         boot.kernelPackages = pkgs.linuxPackagesFor customKernel;
+
+        # NixOS 默认 initrd 模块表里有大量本内核没有的模块（ata_piix、sata_nv/via/
+        # sis/uli、pata_marvell、nvme、sr_mod、uhci/ehci/ohci_hcd…），modules-shrunk
+        # 会因 modprobe 找不到而让 initrd 构建直接失败。
+        # 本内核根盘驱动（ahci/sd_mod/ext4）全部 builtin，故按 TS-564 实际需要
+        # 收敛到最小集（与 modules/kernel-custom.nix 保持一致）。
+        boot.initrd.availableKernelModules = lib.mkForce [ "xhci_pci" "ahci" "sdhci_pci" ];
       };
 
       packages.${system} = {
