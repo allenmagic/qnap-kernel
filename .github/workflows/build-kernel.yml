@@ -22,10 +22,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v27
+        uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -35,7 +35,7 @@ jobs:
       # CACHIX_AUTH_TOKEN 在仓库 Settings -> Secrets and variables -> Actions 配置；
       # 未配置时（如 fork 的 PR）只读不推，构建仍会执行。
       - name: Setup Cachix (qnap-kernel)
-        uses: cachix/cachix-action@v15
+        uses: cachix/cachix-action@v17
         with:
           name: qnap-kernel
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
