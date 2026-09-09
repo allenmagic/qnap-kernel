@@ -139,12 +139,19 @@
       nixosModules.default = import ./modules/kernel-custom.nix (inputs // { inherit kernelPackages; });
 
       # 只换内核：供已有 qnap8528 集成的宿主（qnap-nixos-nas）使用。
-      # 用**宿主的 pkgs** 构建包集合（而非本 flake 的 pkgs），这样宿主通过
-      # nixpkgs.overlays 注入的 qnap8528（hardware.qnap8528 模块的 overlay
-      # 扩展的是宿主 pkgs 的 linuxKernel.packagesFor）才能被带上。
-      # 内核本身仍是本 flake 构建的那份，derivation 不变，缓存照常命中。
+      # 用**宿主的 pkgs** 构建包集合（而非本 flake 的 pkgs），内核本身仍是本
+      # flake 构建的那份，derivation 不变，缓存照常命中。
+      # 再注入**本 flake 自己的 qnap8528**：这样求值出的 qnap8528 与 CI 的
+      # packages.qnap8528-module 是同一个 derivation，NAS 直接从 Cachix 替换，
+      # 不再本地编译（因而也不再需要 kernel.dev 这个 593MB 的构建输入）。
+      # 宿主的 hardware.qnap8528 模块读 config.boot.kernelPackages.qnap8528，
+      # 自然拿到这里的包，宿主配置无需改动。
       nixosModules.kernel = { pkgs, lib, ... }: {
-        boot.kernelPackages = pkgs.linuxPackagesFor customKernel;
+        boot.kernelPackages = (pkgs.linuxPackagesFor customKernel).extend (self: _super: {
+          qnap8528 = inputs.qnap8528.packages.${system}.qnap8528.override {
+            kernel = self.kernel;
+          };
+        });
 
         # NixOS 默认 initrd 模块表里有大量本内核没有的模块（ata_piix、sata_nv/via/
         # sis/uli、pata_marvell、nvme、sr_mod、uhci/ehci/ohci_hcd…），modules-shrunk
