@@ -20,6 +20,13 @@
       # nixpkgs 自带的 LTS 内核（当前 6.18.50），只取版本/源码/patch 骨架。
       kernelBase = pkgs.linuxKernel.kernels.linux_default;
 
+      # 内核标识：uname -r 显示为 6.18.50-QNAP-TS-564。
+      # 写入 CONFIG_LOCALVERSION（见下方 genConfig）。注意它会把模块目录改成
+      # /lib/modules/<version><localVersion>，所以 modDirVersion 必须同步——
+      # nixpkgs 的 build.nix 会拿 include/config/kernel.release 与之比对，
+      # 不一致直接报错退出。
+      localVersion = "-QNAP-TS-564";
+
       # 由 localmodconfig 从 NAS 实机状态生成的最小配置（见 scripts/snapshot-nas.sh
       # 与 nix build .#genConfig）。文件名带版本号：升级内核后必须重新生成。
       nasConfig = ./generated/nas-${kernelBase.version}.config;
@@ -27,7 +34,8 @@
       # 用原始 .config 构建：绕过 nixpkgs 的 generate-config.pl，配置即 NAS 实机
       # 裁剪后的原样结果，不再经过 structuredExtraConfig / autoModules 的二次加工。
       customKernel = pkgs.linuxKernel.manualConfig {
-        inherit (kernelBase) version src modDirVersion kernelPatches;
+        inherit (kernelBase) version src kernelPatches;
+        modDirVersion = "${kernelBase.version}${localVersion}";
 
         configfile = nasConfig;
 
@@ -81,6 +89,12 @@
 
           echo "==> make localmodconfig（只保留 lsmod 中已加载的模块）"
           make ARCH=x86_64 LSMOD=${./docs/nas/lsmod.txt} localmodconfig
+
+          echo "==> 写入内核标识 CONFIG_LOCALVERSION（uname -r 显示 6.18.50${localVersion}）"
+          ./scripts/config --file .config --set-str LOCALVERSION "${localVersion}"
+          make ARCH=x86_64 olddefconfig
+          grep -qE '^CONFIG_LOCALVERSION="${localVersion}"$' .config \
+            || { echo "LOCALVERSION 未生效"; exit 1; }
 
           echo "==> 叠加 keep-list（拉回快照时未加载但必需的选项）"
           while read -r kind opt _; do
