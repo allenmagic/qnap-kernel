@@ -1,0 +1,41 @@
+name: "Build and Cache QNAP Custom Kernel"
+
+on:
+  push:
+    branches: [ "main" ]    # 当您向 main 分支推送代码时自动触发
+  pull_request:
+    branches: [ "main" ]    # 提交 PR 时触发编译测试
+  workflow_dispatch:        # 允许您在 GitHub 网页端手动点击触发编译
+
+jobs:
+  nix-kernel-build:
+    runs-on: ubuntu-latest  # 使用 GitHub 提供的免费 Ubuntu 执行器
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    # 1. 在 GitHub Runner 虚拟机中注入官方纯净的 Nix 工具链
+    - name: Install Nix
+      uses: cachix/install-nix-action@v25
+      with:
+        # 使用最新的不稳定版频道以获取最新版内核支持
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+    # 2. 对接您的私有二进制缓存（以 Cachix 为例，若使用 Attic 可换用对应 Action）
+    # 这一步是 NAS 能否实现“0秒免编译、秒级拉取”的核心基础
+    - name: Setup Magic Binary Cache (Cachix)
+      uses: cachix/cachix-action@v14
+      with:
+        name: 'your-qnap-cache' # ⚠️ 替换为您的 Cachix 缓存空间名称
+        # ⚠️ 请在您的 GitHub 仓库的 Settings -> Secrets and variables -> Actions 中
+        # 添加名为 CACHIX_AUTH_TOKEN 的密钥
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+    # 3. 核心构建命令：利用 Nix 纯净沙盒去轰炸 GitHub Runner 的 CPU
+    # 这里的 `.#packages.x86_64-linux.kernel` 精准对应我们在 flake.nix 导出的纯内核包
+    - name: Compile Custom Kernel with Nix Tools
+      run: |
+        nix build .#packages.x86_64-linux.kernel --print-out-paths --verbose

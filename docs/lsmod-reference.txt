@@ -1,0 +1,223 @@
+# Active Kernel Modules Reference for QNAP TS-564
+# Generated from production system
+# Last updated: [DATE]
+#
+# This file lists all currently loaded kernel modules on the TS-564.
+# Use this as a reference when pruning kernel configuration to ensure
+# essential functionality is preserved.
+#
+# To update this file, run on your TS-564:
+#   lsmod > docs/lsmod-reference.txt
+#
+# Format: Module, Size, Used by
+# ============================================================
+
+Module                  Size  Used by
+nft_masq               12288  1
+udp_diag               12288  0
+tcp_diag               20480  0
+inet_diag              24576  2 tcp_diag,udp_diag
+xt_nat                 12288  0
+nft_nat                12288  2
+nft_chain_nat          12288  3
+nf_nat                 61440  4 nft_nat,xt_nat,nft_masq,nft_chain_nat
+qnap8528               90112  0
+nft_ct                 32768  3
+nft_fib_inet           12288  1
+nft_fib_ipv4           12288  1 nft_fib_inet
+nft_fib_ipv6           12288  1 nft_fib_inet
+nft_fib                12288  3 nft_fib_ipv6,nft_fib_ipv4,nft_fib_inet
+snd_soc_dmic           12288  0
+snd_hda_intel          69632  0
+snd_hda_codec_intelhdmi    28672  0
+af_packet              69632  12
+veth                   40960  0
+snd_sof_pci_intel_icl    16384  0
+snd_sof_pci_intel_cnl    20480  1 snd_sof_pci_intel_icl
+snd_sof_intel_hda_generic    40960  2 snd_sof_pci_intel_icl,snd_sof_pci_intel_cnl
+soundwire_intel        94208  1 snd_sof_intel_hda_generic
+snd_sof_intel_hda_sdw_bpt    24576  1 soundwire_intel
+snd_sof_intel_hda_common   204800  4 snd_sof_intel_hda_sdw_bpt,snd_sof_pci_intel_icl,snd_sof_intel_hda_generic,snd_sof_pci_intel_cnl
+snd_soc_hdac_hda       24576  1 snd_sof_intel_hda_common
+snd_sof_intel_hda_mlink    36864  4 snd_sof_intel_hda_sdw_bpt,soundwire_intel,snd_sof_intel_hda_common,snd_sof_intel_hda_generic
+snd_sof_intel_hda      20480  2 snd_sof_intel_hda_common,snd_sof_intel_hda_generic
+snd_hda_codec_hdmi     61440  1 snd_hda_codec_intelhdmi
+soundwire_cadence      57344  1 soundwire_intel
+snd_sof_pci            24576  3 snd_sof_pci_intel_icl,snd_sof_intel_hda_generic,snd_sof_pci_intel_cnl
+snd_sof_xtensa_dsp     16384  1 snd_sof_intel_hda_generic
+snd_sof               499712  7 snd_sof_intel_hda_sdw_bpt,snd_sof_pci,snd_sof_pci_intel_icl,snd_sof_intel_hda_common,snd_sof_intel_hda_generic,snd_sof_intel_hda,snd_sof_pci_intel_cnl
+snd_sof_utils          16384  1 snd_sof
+snd_soc_acpi_intel_match   143360  3 snd_sof_pci_intel_icl,snd_sof_intel_hda_generic,snd_sof_pci_intel_cnl
+snd_soc_acpi_intel_sdca_quirks    12288  1 snd_soc_acpi_intel_match
+soundwire_generic_allocation    20480  1 soundwire_intel
+snd_soc_acpi           16384  2 snd_soc_acpi_intel_match,snd_sof_intel_hda_generic
+soundwire_bus        1208320  3 soundwire_intel,soundwire_generic_allocation,soundwire_cadence
+crc32c_cryptoapi       12288  1
+snd_soc_sdca          102400  2 snd_soc_acpi_intel_sdca_quirks,soundwire_bus
+hid                   286720  1 snd_soc_sdca
+crc8                   12288  1 soundwire_cadence
+i915                 4853760  3
+snd_soc_avs           270336  0
+snd_soc_hda_codec      28672  1 snd_soc_avs
+snd_hda_ext_core       36864  7 snd_sof_intel_hda_sdw_bpt,snd_soc_avs,snd_soc_hda_codec,snd_sof_intel_hda_common,snd_soc_hdac_hda,snd_sof_intel_hda_mlink,snd_sof_intel_hda
+snd_hda_codec         217088  7 snd_soc_avs,snd_hda_codec_hdmi,snd_soc_hda_codec,snd_hda_intel,snd_soc_hdac_hda,snd_sof_intel_hda,snd_hda_codec_intelhdmi
+snd_hda_core          147456  10 snd_soc_avs,snd_hda_codec_hdmi,snd_soc_hda_codec,snd_hda_intel,snd_hda_ext_core,snd_hda_codec,snd_sof_intel_hda_common,snd_soc_hdac_hda,snd_sof_intel_hda,snd_hda_codec_intelhdmi
+snd_intel_dspcfg       45056  5 snd_soc_avs,snd_hda_intel,snd_sof,snd_sof_intel_hda_common,snd_sof_intel_hda_generic
+snd_intel_sdw_acpi     16384  2 snd_intel_dspcfg,snd_sof_intel_hda_generic
+snd_hwdep              24576  1 snd_hda_codec
+snd_soc_core          442368  8 snd_soc_avs,snd_soc_hda_codec,soundwire_intel,snd_sof,snd_soc_sdca,snd_sof_intel_hda_common,snd_soc_hdac_hda,snd_soc_dmic
+ofpart                 16384  0
+cmdlinepart            16384  0
+ee1004                 16384  0
+spi_nor               180224  0
+snd_compress           36864  2 snd_soc_avs,snd_soc_core
+ac97_bus               12288  1 snd_soc_core
+mtd                   114688  4 spi_nor,cmdlinepart,ofpart
+mei_pxp                20480  0
+mei_hdcp               28672  0
+snd_pcm_dmaengine      20480  1 snd_soc_core
+intel_rapl_msr         20480  0
+nfsd                 1073152  5
+nls_iso8859_1          12288  1
+snd_pcm               200704  14 snd_soc_avs,snd_hda_codec_hdmi,snd_hda_intel,snd_hda_codec,soundwire_intel,snd_sof,snd_soc_sdca,snd_sof_intel_hda_common,snd_compress,snd_sof_intel_hda_generic,snd_soc_core,snd_sof_utils,snd_hda_core,snd_pcm_dmaengine
+nls_cp437              16384  1
+x86_pkg_temp_thermal    16384  0
+intel_powerclamp       20480  0
+processor_thermal_device_pci_legacy    12288  0
+processor_thermal_device    20480  1 processor_thermal_device_pci_legacy
+vfat                   28672  1
+snd_timer              57344  1 snd_pcm
+evdev                  32768  3
+auth_rpcgss           200704  1 nfsd
+drm_buddy              12288  1 i915
+processor_thermal_wt_hint    12288  1 processor_thermal_device
+mac_hid                16384  0
+wmi_bmof               12288  0
+coretemp               24576  0
+nfs_acl                12288  1 nfsd
+ttm                   126976  1 i915
+platform_temperature_control    16384  1 processor_thermal_device
+snd                   159744  10 snd_hda_codec_hdmi,snd_hwdep,snd_hda_intel,snd_hda_codec,snd_sof,snd_soc_sdca,snd_timer,snd_compress,snd_soc_core,snd_pcm
+fat                   114688  1 vfat
+ghash_clmulni_intel    12288  0
+processor_thermal_soc_slider    16384  1 processor_thermal_device
+aesni_intel            98304  0
+lockd                 196608  1 nfsd
+i2c_i801               40960  0
+igc                   217088  0
+platform_profile       24576  1 processor_thermal_soc_slider
+grace                  12288  2 nfsd,lockd
+drm_display_helper    319488  1 i915
+intel_cstate           20480  0
+ptp                    57344  1 igc
+nfs_localio            40960  1 nfsd
+spi_intel_pci          12288  0
+wdat_wdt               20480  0
+cfg80211             1449984  0
+rtc_cmos               28672  1
+cec                    77824  2 drm_display_helper,i915
+i2c_smbus              20480  1 i2c_i801
+soundcore              20480  1 snd
+processor_thermal_rfim    28672  1 processor_thermal_device
+intel_gtt              32768  1 i915
+spi_intel              36864  1 spi_intel_pci
+pps_core               32768  1 ptp
+rfkill                 45056  2 cfg80211
+i2c_mux                20480  1 i2c_i801
+sunrpc                897024  17 nfs_localio,nfsd,auth_rpcgss,lockd,nfs_acl
+processor_thermal_rapl    16384  1 processor_thermal_device
+intel_rapl_common      53248  2 intel_rapl_msr,processor_thermal_rapl
+btrfs                2265088  1
+processor_thermal_wt_req    12288  1 processor_thermal_device
+processor_thermal_power_floor    12288  1 processor_thermal_device
+processor_thermal_mbox    12288  4 processor_thermal_power_floor,processor_thermal_wt_req,processor_thermal_rfim,processor_thermal_wt_hint
+mei_me                 57344  2
+int340x_thermal_zone    16384  1 processor_thermal_device
+mei                   208896  5 mei_hdcp,mei_pxp,mei_me
+i2c_algo_bit           24576  1 i915
+intel_soc_dts_iosf     16384  1 processor_thermal_device_pci_legacy
+thermal                28672  0
+blake2b_generic        20480  0
+xor                    24576  1 btrfs
+fan                    28672  0
+ov13858                24576  0
+v4l2_fwnode            36864  1 ov13858
+intel_oc_wdt           12288  0
+v4l2_async             32768  2 v4l2_fwnode,ov13858
+raid6_pq              126976  1 btrfs
+watchdog               49152  2 intel_oc_wdt,wdat_wdt
+videodev              405504  3 v4l2_async,v4l2_fwnode,ov13858
+video                  81920  1 i915
+mc                     90112  3 v4l2_async,videodev,ov13858
+wmi                    36864  2 video,wmi_bmof
+intel_pmc_core        159744  0
+tiny_power_button      12288  0
+pmt_telemetry          20480  1 intel_pmc_core
+pmt_discovery          16384  1 pmt_telemetry
+acpi_tad               20480  0
+pinctrl_jasperlake     20480  0
+pmt_class              20480  2 pmt_telemetry,pmt_discovery
+intel_pmc_ssram_telemetry    16384  1 intel_pmc_core
+intel_vsec             28672  2 intel_pmc_ssram_telemetry,pmt_telemetry
+button                 28672  0
+acpi_pad               24576  0
+xt_conntrack           12288  2
+nf_conntrack          196608  6 xt_conntrack,nf_nat,nft_ct,nft_nat,xt_nat,nft_masq
+nf_defrag_ipv6         24576  1 nf_conntrack
+nf_defrag_ipv4         12288  1 nf_conntrack
+xt_tcpudp              16384  3
+ip6t_rpfilter          12288  1
+ipt_rpfilter           12288  1
+xt_pkttype             12288  2
+nft_compat             28672  9
+x_tables               53248  7 xt_conntrack,ip6t_rpfilter,nft_compat,xt_tcpudp,xt_nat,ipt_rpfilter,xt_pkttype
+nf_tables             393216  619 nft_ct,nft_compat,nft_nat,nft_fib_ipv6,nft_fib_ipv4,nft_masq,nft_chain_nat,nft_fib,nft_fib_inet
+nfnetlink              24576  3 nft_compat,nf_tables
+sch_fq_codel           28672  12
+kvm_intel             442368  4
+kvm                  1409024  1 kvm_intel
+tun                    73728  8
+bridge                413696  0
+tls                   159744  0
+tap                    36864  0
+atkbd                  40960  0
+macvlan                40960  0
+libps2                 24576  1 atkbd
+serio                  32768  1 atkbd
+stp                    12288  1 bridge
+irqbypass              16384  1 kvm
+llc                    20480  2 bridge,stp
+loop                   49152  0
+vivaldi_fmap           12288  1 atkbd
+fuse                  282624  1
+configfs               69632  1
+dmi_sysfs              28672  0
+ext4                 1175552  3
+crc16                  12288  1 ext4
+mbcache                20480  1 ext4
+jbd2                  204800  1 ext4
+mmc_block              69632  0
+rpmb_core              20480  1 mmc_block
+sd_mod                 86016  6
+sdhci_pci             114688  0
+ahci                   57344  6
+sdhci_uhs2             36864  1 sdhci_pci
+sdhci                 102400  2 sdhci_uhs2,sdhci_pci
+libahci                65536  1 ahci
+libata                495616  2 libahci,ahci
+led_class              24576  4 videodev,sdhci,qnap8528,igc
+cqhci                  36864  1 sdhci_pci
+xhci_pci               24576  0
+mmc_core              307200  5 sdhci_uhs2,sdhci,cqhci,mmc_block,sdhci_pci
+scsi_mod              339968  2 sd_mod,libata
+xhci_hcd              430080  1 xhci_pci
+scsi_common            16384  3 scsi_mod,sd_mod,libata
+dm_mod                241664  0
+efivarfs               40960  1
+autofs4                65536  0
+
+# Instructions:
+# 1. SSH into your QNAP TS-564
+# 2. Run: lsmod
+# 3. Copy the entire output and replace the "[Paste your lsmod output here]" line above
+# 4. Update the date in the header
