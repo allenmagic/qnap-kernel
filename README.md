@@ -11,6 +11,7 @@
 ## 特性
 
 - **LTS 内核**: Linux 6.18.50 (长期支持版本)
+- **内核标识**: `uname -r` 显示 `6.18.50-QNAP-TS-564`（`CONFIG_LOCALVERSION`，见 `flake.nix` 的 `localVersion`；`modDirVersion` 必须同步）
 - **配置来自实机**: `.config` 由 `make localmodconfig` 从 NAS 当前运行状态裁剪生成，模块数 7107 → 280
 - **CPU 优化**: 针对 Tremont 的编译器优化 (`-march=tremont -mtune=tremont`)
 - **虚拟化**: 完整的 KVM/QEMU 支持，包含 VirtIO 驱动
@@ -157,13 +158,27 @@ nix.settings = {
 qnap-kernel.url = "github:allenmagic/qnap-kernel";
 ```
 
-然后在宿主机配置里 import `qnap-kernel.nixosModules.kernel`（只换内核；宿主已有
-`hardware.qnap8528.enable`，用 `nixosModules.default` 会重复挂 qnap8528）。
-之后 NAS 上 `nix flake update qnap-kernel && nixos-rebuild switch` 即可直接从缓存拉取。
+然后在宿主机配置里 import `qnap-kernel.nixosModules.kernel`（只换内核 + 注入本仓库
+构建的 qnap8528；宿主已有 `hardware.qnap8528.enable`，用 `nixosModules.default`
+会重复挂 qnap8528）。之后 NAS 上 `nix flake update qnap-kernel && nixos-rebuild boot`
+即可直接从缓存拉取。
 
 > 缓存命中的前提：NAS 求值出的 derivation 与 CI 完全一致 —— 同 flake rev、同
 > `nixpkgs`（本仓库自带的 lock，**不要** follows 宿主的 nixpkgs）、`boot.kernelPatches`
 > 为空、`boot.kernel.randstructSeed` 为默认值。
+
+### qnap8528 也从缓存替换
+
+`nixosModules.kernel` 在包集合上 extend 出 `qnap8528`（用**本仓库**的 qnap8528
+input，`kernel = self.kernel`），使其与 CI 的 `packages.qnap8528-module` 是同一个
+derivation。效果（NAS 上实测 `nixos-rebuild dry-build`）：
+
+- qnap8528 从「will be built」变成「will be fetched」——直接拉 `.ko`，不再本地编译
+- 因此 `kernel.dev`（622MB store / 593MB 下载）**不再是构建输入**，NAS 下载量从
+  432MB 降到 28.8MB
+
+⚠️ 副作用：宿主 `qnap-nixos-nas` 的 qnap8528 input rev 不再影响实际编出的 `.ko`
+（以本仓库 `flake.lock` 为准）。升级 qnap8528 请改本仓库的 input。
 
 ## 与 qnap8528 集成
 
